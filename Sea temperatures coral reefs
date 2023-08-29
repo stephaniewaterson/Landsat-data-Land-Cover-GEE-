@@ -1,0 +1,59 @@
+var ROI = ee.FeatureCollection([
+ee.Feature( // Peros Banos
+ee.Geometry.Rectangle(71.7, -5.5, 72.35, -5.18), {label: 'Peros Banos'}),
+ee.Feature( // Dry Tortugas
+ee.Geometry.Rectangle(-82.95, 24.59,-82.83 , 24.66), {label: 'Dry Tortugas'}),
+ee.Feature( // Southern Great Barrier Reef
+ee.Geometry.Rectangle(149.44, -21.40, 151.2, -19.52), {label: 'Southern Great Barrier Reef'}),
+
+]);
+
+Map.addLayer(ROI, {}, '');
+
+// adding names to ROI
+
+var FeatCollectAsAList = ROI.toList(ROI.size());
+
+print(FeatCollectAsAList, 'ROI');
+
+// map a function over the list to rename the IDs
+
+var ROIEdit = ee.FeatureCollection(FeatCollectAsAList.map(function(feat){
+
+var id = ee.Feature(feat).get('label');
+
+return ee.Feature(feat).set("system:index", id);
+
+}));
+
+print(ROIEdit);
+// obtain SST data from NASA
+var CoralReefs_SST = ee.ImageCollection("NASA/OCEANDATA/MODIS-Aqua/L3SMI").select('sst') // use OISST for EEZ_SE
+.filterDate(ee.Date('2012-04-01'), ee.Date('2012-05-01'))
+.filterBounds(ROI);
+print('CoralReefs_SST', CoralReefs_SST);
+// Function to get temp threshold
+function bleachingtemp(image){
+    var hot = image.gte(30);
+    return image.addBands(hot.rename('hotdays')
+      .set('system:time_start', image.get('system:time_start')));}
+      // Number of bleachingtemp, Daily LST day and mean exceeding 30degC
+var LST30Mean = ee.ImageCollection("NASA/OCEANDATA/MODIS-Aqua/L3SMI").select('sst')
+.filterDate(ee.Date('2012-04-01'), ee.Date('2012-05-01'))
+.filterBounds(ROI);
+print('LST30Mean', LST30Mean);
+var LST30Day = ee.ImageCollection("NASA/OCEANDATA/MODIS-Aqua/L3SMI").select('sst').map(bleachingtemp)
+.filterDate(ee.Date('2012-04-01'), ee.Date('2012-05-01'))
+.filterBounds(ROIEdit);
+print('LST30Mean', LST30Mean);
+var visParams = {
+min: -2000,
+max: 9000.0,
+palette:[
+'FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718', '74A901','66A000', '529400', '3E8601', '207401', '056201', '004C00', '023B01',
+'012E01', '011D01', '011301'
+],
+};
+
+
+Map.addLayer(LST30Mean, {}, 'lstmean');
