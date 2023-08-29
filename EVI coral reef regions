@@ -1,0 +1,256 @@
+/make feature Collection of UK marine regions
+
+var ROI = ee.FeatureCollection([
+
+ee.Feature( // Peros Banos
+
+ee.Geometry.Rectangle(71.7, -5.5, 72.35, -5.18), {label: 'Peros Banos'}),
+
+ee.Feature( // Dry Tortugas
+
+ee.Geometry.Rectangle(-82.95, 24.59,-82.83 , 24.66), {label: 'Dry Tortugas'}),
+
+ee.Feature( // Southern Great Barrier Reef
+
+ee.Geometry.Rectangle(149.44, -21.40, 151.2, -19.52), {label: 'Southern Great Barrier Reef'}),
+
+
+
+]);
+
+
+Map.addLayer(ROI, {}, 'ROI');
+
+// adding names to ROI
+
+var FeatCollectAsAList = ROI.toList(ROI.size());
+
+print(FeatCollectAsAList, 'ROI');
+
+// map a function over the list to rename the IDs
+
+var ROIEdit = ee.FeatureCollection(FeatCollectAsAList.map(function(feat){
+
+var id = ee.Feature(feat).get('label');
+
+return ee.Feature(feat).set("system:index", id);
+
+}));
+
+print(ROIEdit);
+
+// obtain SST data from NASA
+
+var CoralReefs_SST = ee.ImageCollection("NASA/OCEANDATA/MODIS-Aqua/L3SMI").select('sst') // use OISST for EEZ_SE
+
+.filterDate(ee.Date('2015-01-01'), ee.Date('2017-01-01'))
+
+.filterBounds(ROI);
+
+print('CoralReefs_SST', CoralReefs_SST);
+
+// Define a chart with one series across UK, averaged by DOY.
+
+var series1 = ui.Chart.image.doySeries(
+
+CoralReefs_SST, ROI, ee.Reducer.mean(), 500);
+
+print(series1);
+
+// Define a chart with a a different series for each year across the UK.
+
+var series2 = ui.Chart.image.doySeriesByYear(
+
+CoralReefs_SST, 'sst', ROI, ee.Reducer.mean(), 500);
+
+print(series2);
+
+// Define a chart with different series for each region, averaged by DOY.
+
+var series3 = ui.Chart.image.doySeriesByRegion(
+
+CoralReefs_SST, 'sst', ROI, ee.Reducer.mean(), 500, ee.Reducer.mean(), 'label');
+
+print(series3);
+
+var series4 = ui.Chart.image.seriesByRegion(
+
+CoralReefs_SST, ROI, ee.Reducer.mean(), 'sst', 500, 'system:time_start', 'label')
+
+.setChartType('ScatterChart')
+
+.setOptions({
+
+title: 'SST over Global Coral Reef marine regions',
+
+vAxis: {title: 'SST °C'},
+
+lineWidth: 1,
+
+pointSize: 4,
+
+series: {
+
+0: {color: 'FF0000'}, // North Sea
+
+1: {color: '00FF00'}, // English Channel
+
+2: {color: '0000FF'}, // Celtic Sea
+
+
+}});
+
+print(series4);
+
+// Display.
+
+
+// Monthly averages
+
+var startyear = 2015;
+
+var endyear = 2017;
+
+var startmonth = 1;
+
+var endmonth = 12;
+
+var startdate = ee.Date.fromYMD(startyear, startmonth, 1);
+
+var enddate = ee.Date.fromYMD(endyear , endmonth, 1);
+
+var years = ee.List.sequence(startyear, endyear);
+
+var months = ee.List.sequence(1, 12);
+
+var monthlySST = ee.ImageCollection.fromImages(
+
+years.map(function (y) {
+
+return months.map(function(m) {
+
+var w = CoralReefs_SST.filter(ee.Filter.calendarRange(y, y, 'year'))
+
+.filter(ee.Filter.calendarRange(m, m, 'month'))
+
+.mean();
+
+return w.set('year', y)
+
+.set('month', m)
+
+.set('system:time_start', ee.Date.fromYMD(y, m, 1));
+
+});
+
+}).flatten()
+
+);
+
+
+
+var series5 = ui.Chart.image.series(monthlySST, ROI, ee.Reducer.mean(), 500)
+
+.setOptions({
+
+title: "SST monthly mean ",
+
+hAxis: {title: 'Time'},
+
+vAxis: {title: 'Surface temperature (°C)'},
+
+colors: ['#EF851C'],
+
+pointSize: 3});
+
+var series6 = ui.Chart.image.seriesByRegion(
+
+monthlySST, ROI, ee.Reducer.mean(), 'sst', 500, 'system:time_start', 'label')
+
+.setChartType('ScatterChart')
+
+.setOptions({
+
+title: 'SST monthly mean over three Global Coral Reef marine regions',
+
+vAxis: {title: 'SST °C'},
+
+lineWidth: 1,
+
+pointSize: 4,
+
+series: {
+
+0: {color: 'FF0000'}, // Peros Banos
+
+1: {color: '00FF00'}, // Dry Tortugas
+
+2: {color: '0000FF'}, // Souther Great Barrier Reef
+
+
+}});
+
+
+
+
+// calculate EVI and visualise for each region
+
+var L8 = ee.ImageCollection("LANDSAT/LC08/C01/T1_SR")
+
+.filterDate('2019-01-01', '2019-12-31')
+
+.filterBounds(ROI);
+
+var L8_19 = L8.median();
+
+var evi_19 = L8_19.expression(
+
+'2.5 * ((NIR-RED) / (NIR + 6 * RED - 7.5* BLUE +1))', {
+
+NIR:L8_19.select('B5'),
+
+RED:L8_19.select('B4'),
+
+BLUE:L8_19.select('B2')
+
+});
+
+var eviVis = {
+
+min: -1.0,
+
+max: 3.0,
+
+palette: [
+
+'ffffff', 'ce7e45', 'fcd163', 'c6ca02', '22cc04', '99b718', '207401',
+
+'012e01'
+
+],
+
+};
+
+Map.addLayer(evi_19.clip(ROI), eviVis, 'EVI_19');
+
+var evi_regions = evi_19.reduceRegions({
+
+reducer: ee.Reducer.mean(),
+
+collection: ROI,
+
+scale: 30});
+
+print('EVI Coral Reef Regions', evi_regions);
+
+// This function adds a band representing the image timestamp.
+
+var addTime = function(image) {
+
+return image.addBands(image.metadata('system:time_start'));
+
+};
+
+// Map the function over the collection and display the result.
+
+var L8_timestamp = L8.map(addTime);
