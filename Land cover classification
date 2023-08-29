@@ -1,7 +1,92 @@
-echo "# Landsat-data-Land-Cover-GEE-" >> README.md
-git init
-git add README.md
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/stephaniewaterson/Landsat-data-Land-Cover-GEE-.git
-git push -u origin main
+var Cartagena_geom = ee.Geometry.Rectangle(-75.6,10.3,-75.3,10.5);
+var Cartagena = ee.Feature(ee.Geometry.Rectangle(-75.6,10.3,-75.4,10.5), {label:'Cuidad_de_Cartagena'});
+Map.addLayer(Cartagena, {}, 'Cuidad_de_Cartagena');
+print('Cuidad_de_Cartagena', Cartagena);
+var L8 =ee.ImageCollection("LANDSAT/LC08/C02/T1_L2");
+
+var collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2").filterDate('2019-01-01','2019-12-31');
+var median = collection.median();
+Map.addLayer(median.clip(Cartagena), {bands: ['SR_B4', 'SR_B3', 'SR_B2'], min:7000, max:15000}, 'median');
+
+var regions2 = ee.FeatureCollection([ee.Feature(  //urbanshape
+ee.Geometry(urban2, {label: 'Urbanshape'}),
+ee.Feature(   //water
+ee.Geometry(water2, {label: 'watershape'}),
+ee.Feature(     //forest
+ee.Geometry(forest2, {label: 'forestshape'}),
+]);
+
+
+
+var regions = ee.FeatureCollection([ee.Feature(  //urban
+ee.Geometry.Rectangle(-75.53,10.41,-75.44,10.35), {label: 'Urban'}),
+ee.Feature(   //forest
+ee.Geometry.Rectangle(-75.48,10.41,-75.40,10.50), {label: 'Forest'}),
+ee.Feature(    // water
+ee.Geometry.Rectangle(-75.52,10.41,-75.47,10.49), {label: 'Water'}),]);
+Map.addLayer(regions, {}, 'Cartagena regions');
+print('regions', regions);
+var collection_month = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2").filterDate('2019-05-01','2019-06-01');
+var median2 = collection_month.median();
+Map.addLayer(median2.clip(water), {bands: ['SR_B5', 'SR_B4', 'SR_B3'], min:7000, max:15000}, 'medianwater');
+var vizParams = {bands: ['SR_B5', 'SR_B4', 'SR_B3'], min:7000, max:15000};
+
+Map.addLayer(median2.clip(urban), vizParams, 'medianurban');
+Map.addLayer(median2.clip(forest), vizParams, 'medianforest');
+
+var vizParams2 =  {bands: ['SR_B7', 'SR_B5', 'SR_B4'], min:7000, max:15000};
+
+Map.addLayer(median2.clip(water), vizParams2, 'medianwater2');
+Map.addLayer(median2.clip(urban), vizParams2, 'medianurban2');
+
+var InfraColwater= ee.ImageCollection("LANDSAT/LC08/C02/T1_L2").select('SR_B[3-5]').filterDate('2019-05-01','2019-06-01').filterBounds(water).sort('CLOUD_COVER').median();
+var InfraColReflwater= InfraColwater.multiply(0.0000275).subtract(0.2);
+var options= {title: 'Landsat 8 reflectance historgram, bands 3-5, Water land cover',
+fontSize:20, 
+hAxis:{title: 'Reflectance'}, 
+vAxis:{title: 'Count'},
+series:{
+  0: {color: 'blue'},
+  1: {color: 'green'},
+  2: {color: 'red'},
+  3: {color: 'magenta'}}};
+  
+var hist= ui.Chart.image.histogram(InfraColReflwater, water, 30)
+.setSeriesNames(['blue', 'green', 'red'])
+.setOptions(options);
+print(hist);
+
+var InfraColurban= ee.ImageCollection("LANDSAT/LC08/C02/T1_L2").select('SR_B[3-5]').filterDate('2019-05-01','2019-06-01').filterBounds(urban).sort('CLOUD_COVER').median();
+var InfraColReflurban= InfraColurban.multiply(0.0000275).subtract(0.2);
+var options2= {title: 'Landsat 8 reflectance historgram, bands 3-5, Urban land cover',
+fontSize:20, 
+hAxis:{title: 'Reflectance'}, 
+vAxis:{title: 'Count'},
+series:{
+  0: {color: 'blue'},
+  1: {color: 'green'},
+  2: {color: 'red'},
+  3: {color: 'magenta'}}};
+  
+var hist2= ui.Chart.image.histogram(InfraColReflurban, urban, 30)
+.setSeriesNames(['blue', 'green', 'red'])
+.setOptions(options);
+print(hist2);
+
+var InfraColforest= ee.ImageCollection("LANDSAT/LC08/C02/T1_L2").select('SR_B[3-5]').filterDate('2019-05-01','2019-06-01').filterBounds(forest).sort('CLOUD_COVER').median();
+var InfraColReflforest= InfraColforest.multiply(0.0000275).subtract(0.2);
+var options3= {title: 'Landsat 8 reflectance historgram, bands 3-5, Forest land cover',
+fontSize:20, 
+hAxis:{title: 'Reflectance'}, 
+vAxis:{title: 'Count'},
+series:{
+  0: {color: 'blue'},
+  1: {color: 'green'},
+  2: {color: 'red'},
+  3: {color: 'magenta'}}};
+  
+var hist3= ui.Chart.image.histogram(InfraColReflforest, forest, 30)
+.setSeriesNames(['blue', 'green', 'red'])
+.setOptions(options);
+print(hist3);
+
